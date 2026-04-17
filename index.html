@@ -27,7 +27,7 @@
         .card {
             background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
             width: 100%; display: flex; align-items: center; position: relative; min-height: 110px;
-            transition: all 0.4s ease;
+            transition: all 0.4s ease; overflow: hidden;
         }
 
         @keyframes ambientGlow {
@@ -39,39 +39,38 @@
         .card.active.tier-1 { --glow-color: rgba(76, 175, 80, 0.2); border-left: 6px solid var(--t1); animation: ambientGlow 3s infinite ease-in-out; }
         .card.active.tier-2 { --glow-color: rgba(33, 150, 243, 0.3); border-left: 6px solid var(--t2); animation: ambientGlow 3s infinite ease-in-out; }
         .card.active.tier-3 { --glow-color: rgba(255, 193, 7, 0.4); border-left: 6px solid var(--t3); animation: ambientGlow 3s infinite ease-in-out; }
-        
         .card.mastered { border: 2px solid var(--mastery); --glow-color: rgba(255, 247, 0, 0.6); animation: ambientGlow 1.5s infinite ease-in-out; }
+        
         .card.locked { opacity: 0.15; filter: grayscale(1); }
 
         .image-box {
             width: 90px; height: 90px; flex-shrink: 0; background: #000;
             margin: 10px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
-            font-size: 2.5rem; cursor: pointer; transition: transform 0.2s;
+            cursor: pointer; transition: transform 0.2s;
         }
-        .image-box:hover { transform: scale(1.05); }
+        .image-box img { width: 80%; height: 80%; object-fit: contain; }
 
-        /* Full Screen Zoom Overlay */
+        /* Zoom Overlay */
         #zoom-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); z-index: 10000;
+            background: rgba(0,0,0,0.95); z-index: 10000;
             display: none; flex-direction: column; align-items: center; justify-content: center;
-            backdrop-filter: blur(8px); cursor: pointer;
+            backdrop-filter: blur(10px); cursor: pointer;
         }
         #zoom-overlay.show { display: flex; }
-        #zoomed-icon { font-size: 8rem; transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        #zoomed-img { width: 250px; height: 250px; object-fit: contain; transition: transform 0.3s; }
         #zoom-text { 
-            margin-top: 20px; font-size: 1.5rem; color: #fff; text-align: center; 
-            max-width: 80%; line-height: 1.4; font-weight: bold; opacity: 0; 
+            margin-top: 30px; font-size: 1.4rem; color: #fff; text-align: center; 
+            max-width: 85%; line-height: 1.5; font-weight: bold; opacity: 0; transform: translateY(20px);
         }
-        #zoom-text.visible { opacity: 1; transition: opacity 0.3s; }
+        #zoom-text.visible { opacity: 1; transform: translateY(0); transition: all 0.3s; }
 
         .content { padding: 12px 15px 12px 5px; flex-grow: 1; }
         .tier-label { font-weight: 900; text-transform: uppercase; font-size: 0.9rem; }
         .badge { font-size: 0.7rem; padding: 3px 7px; border-radius: 4px; float: right; background: #333; font-weight: bold; }
         .active .badge { background: #2e7d32; }
-        .mastered .badge { background: var(--mastery); color: #000; }
 
-        .desc { font-size: 1.1rem; color: #ddd; margin: 6px 0; line-height: 1.3; }
+        .desc { font-size: 1rem; color: #bbb; margin: 6px 0; line-height: 1.2; }
         .xp-container { background: #000; height: 12px; border-radius: 6px; margin-top: 10px; width: 100%; overflow: hidden;}
         .xp-bar { height: 100%; width: 0%; transition: width 0.4s; }
         .tier-1 .xp-bar { background: var(--t1); }
@@ -80,14 +79,10 @@
 
         .controls { display: flex; gap: 8px; margin-top: 12px; }
         button { border: 1px solid #444; border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: bold; color: white; }
-        .btn-plus { flex-grow: 1; padding: 15px; background: #222; text-transform: uppercase; border: 1px solid #555; }
-        .btn-minus { width: 50px; background: #1a1a1a; color: #ff4444; font-size: 1.3rem; }
+        .btn-plus { flex-grow: 1; padding: 15px; background: #222; }
+        .btn-minus { width: 50px; background: #1a1a1a; color: #ff4444; }
 
-        #celebration-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); z-index: 9999;
-            display: none; align-items: center; justify-content: center;
-        }
+        #celebration-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; display: none; align-items: center; justify-content: center; }
         #celebration-overlay.show { display: flex; }
 
         @media (min-width: 768px) {
@@ -104,7 +99,7 @@
 <div id="app"></div>
 
 <div id="zoom-overlay" onclick="handleZoomClick()">
-    <div id="zoomed-icon"></div>
+    <img id="zoomed-img" src="" alt="Zoomed Skill">
     <div id="zoom-text"></div>
 </div>
 
@@ -117,25 +112,17 @@
 
 <script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    
-    function playSound(type) {
+    function playSound(f=440) {
         if (audioCtx.state === 'suspended') audioCtx.resume();
-        const now = audioCtx.currentTime;
-        if (type === 'click') {
-            [220, 330, 440].forEach(f => {
-                const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-                o.type = 'triangle'; o.frequency.setValueAtTime(f, now);
-                g.gain.setValueAtTime(0.04, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-                o.connect(g); g.connect(audioCtx.destination);
-                o.start(); o.stop(now + 0.5);
-            });
-        }
-        // ... Fanfare and Applause functions same as previous V6 code ...
+        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+        o.type='triangle'; o.frequency.setValueAtTime(f, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.05, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+        o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.5);
     }
 
     const skillData = [
         { 
-            name: "Presentation", xp: 0, m1: 5, m2: 15, m3: 35, icons: ["📝", "🖼️", "🎤"],
+            name: "Presentation", prefix: "pres", xp: 0, m1: 5, m2: 15, m3: 35,
             quotes: [
                 "You're getting there! Your presentation is smooth and the foundation is solid.",
                 "You've found your rhythm. You use visuals as a weapon rather than a crutch.",
@@ -143,7 +130,7 @@
             ]
         },
         { 
-            name: "Athleticism", xp: 0, m1: 30, m2: 90, m3: 180, icons: ["🏃", "⚡", "🔥"],
+            name: "Athleticism", prefix: "ath", xp: 0, m1: 30, m2: 90, m3: 180,
             quotes: [
                 "Building the engine. You have established a consistent routine and stamina is climbing.",
                 "Power and precision. You have mastered the mechanics of movement.",
@@ -151,7 +138,7 @@
             ]
         },
         { 
-            name: "Negotiation", xp: 0, m1: 5, m2: 20, m3: 50, icons: ["🤝", "⚖️", "👑"],
+            name: "Negotiation", prefix: "nego", xp: 0, m1: 5, m2: 20, m3: 50,
             quotes: [
                 "Learning the leverage. You understand the basics of value exchange.",
                 "The Art of the Deal. You find 'Win-Win' scenarios others miss.",
@@ -159,7 +146,7 @@
             ]
         },
         { 
-            name: "Public Speaking", xp: 0, m1: 5, m2: 20, m3: 50, icons: ["🗣️", "📣", "🌟"],
+            name: "Public Speaking", prefix: "publ", xp: 0, m1: 5, m2: 20, m3: 50,
             quotes: [
                 "Voice found! You can address a group clearly, overcoming 'Stage Fright'.",
                 "Captivating the crowd. Your vocal tonality keeps attention locked.",
@@ -170,35 +157,25 @@
 
     let zoomStep = 0;
 
-    function openZoom(skillIndex, tierIndex) {
+    function openZoom(sIdx, tIdx) {
         const overlay = document.getElementById('zoom-overlay');
-        const iconDiv = document.getElementById('zoomed-icon');
-        const textDiv = document.getElementById('zoom-text');
+        const img = document.getElementById('zoomed-img');
+        const txt = document.getElementById('zoom-text');
         
-        iconDiv.innerText = skillData[skillIndex].icons[tierIndex];
-        textDiv.innerText = skillData[skillIndex].quotes[tierIndex];
+        img.src = `${skillData[sIdx].prefix}${tIdx + 1}.png`;
+        txt.innerText = skillData[sIdx].quotes[tIdx];
         
         overlay.classList.add('show');
-        iconDiv.style.transform = "scale(1)";
-        textDiv.classList.remove('visible');
-        zoomStep = 1; // Step 1: Just the icon
-        playSound('click');
+        txt.classList.remove('visible');
+        zoomStep = 1;
+        playSound(523);
     }
 
     function handleZoomClick() {
-        const iconDiv = document.getElementById('zoomed-icon');
-        const textDiv = document.getElementById('zoom-text');
+        const txt = document.getElementById('zoom-text');
         const overlay = document.getElementById('zoom-overlay');
-
-        if (zoomStep === 1) {
-            // Step 2: Show Text
-            textDiv.classList.add('visible');
-            zoomStep = 2;
-        } else if (zoomStep === 2) {
-            // Step 3: Close
-            overlay.classList.remove('show');
-            zoomStep = 0;
-        }
+        if (zoomStep === 1) { txt.classList.add('visible'); zoomStep = 2; } 
+        else if (zoomStep === 2) { overlay.classList.remove('show'); zoomStep = 0; }
     }
 
     function render() {
@@ -218,11 +195,13 @@
 
                         return `
                         <div class="card tier-${t} ${active ? 'active' : ''} ${locked ? 'locked' : ''} ${isMastered ? 'mastered' : ''}">
-                            <div class="image-box" onclick="openZoom(${sIdx}, ${t-1})">${skill.icons[t-1]}</div>
+                            <div class="image-box" onclick="openZoom(${sIdx}, ${t-1})">
+                                <img src="${skill.prefix}${t}.png" onerror="this.src='https://via.placeholder.com/80?text=PNG'">
+                            </div>
                             <div class="content">
                                 <span class="badge">${isMastered ? 'MASTERED' : (active ? 'ACTIVE' : (locked ? 'LOCKED' : 'DONE'))}</span>
                                 <span class="tier-label" style="color:var(--t${t})">Tier ${t}</span>
-                                <div class="desc">${skill.quotes[t-1].substring(0, 30)}...</div>
+                                <div class="desc">${skill.quotes[t-1].substring(0, 35)}...</div>
                                 ${active && !isMastered ? `
                                     <div class="xp-container"><div class="xp-bar" style="width:${prog}%"></div></div>
                                     <div class="controls">
@@ -235,7 +214,7 @@
                 </div>
             </div>`;
         }).join('');
-        localStorage.setItem('myRPGSavV7', JSON.stringify(skillData));
+        localStorage.setItem('myRPGSavV8', JSON.stringify(skillData));
     }
 
     window.modifyXP = (i, n) => {
@@ -243,17 +222,17 @@
         const oldXP = s.xp;
         s.xp = Math.max(0, Math.min(s.m3, s.xp + n));
         if (s.xp !== oldXP) {
-            if (n > 0) playSound('click');
-            // Mastery Check
+            playSound(440);
             if (oldXP < s.m3 && s.xp >= s.m3) {
                 document.getElementById('celebration-overlay').classList.add('show');
+                confetti({ particleCount: 400, spread: 100, origin: { y: 0.6 } });
                 setTimeout(() => document.getElementById('celebration-overlay').classList.remove('show'), 5000);
             }
             render();
         }
     }
 
-    const saved = localStorage.getItem('myRPGSavV7');
+    const saved = localStorage.getItem('myRPGSavV8');
     if(saved) JSON.parse(saved).forEach((s, i) => { if(skillData[i]) skillData[i].xp = s.xp; });
     render();
 </script>
