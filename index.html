@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Character Skill Tree</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --bg: #0b0b0d; --card-bg: #151518; --border: #2a2a2e;
+            --t1: #4caf50; --t2: #2196f3; --t3: #ffc107;
+            --mastery: #fff700;
+        }
+        body {
+            background-color: var(--bg); color: #fff; font-family: 'Segoe UI', Roboto, sans-serif;
+            margin: 0; padding: 15px; overflow-x: hidden;
+        }
+        header { text-align: center; border-bottom: 2px solid #222; margin-bottom: 25px; padding-bottom: 10px; }
+        h1 { text-transform: uppercase; letter-spacing: 2px; color: var(--t3); margin: 0; font-size: 1.4rem; }
+
+        .skill-section { margin-bottom: 40px; }
+        .skill-name { 
+            font-size: 1.3rem; text-transform: uppercase; margin-bottom: 15px; 
+            color: #fff; border-left: 5px solid var(--t3); padding-left: 12px; font-weight: bold;
+        }
+        .card-row { display: flex; flex-direction: column; gap: 15px; }
+        .card {
+            background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
+            width: 100%; display: flex; align-items: center; position: relative; min-height: 110px;
+            transition: all 0.4s ease;
+        }
+
+        /* Ambient Animated Glows */
+        @keyframes ambientGlow {
+            0% { box-shadow: 0 0 5px var(--glow-color); }
+            50% { box-shadow: 0 0 20px var(--glow-color); }
+            100% { box-shadow: 0 0 5px var(--glow-color); }
+        }
+
+        .card.active.tier-1 { --glow-color: rgba(76, 175, 80, 0.2); border-left: 6px solid var(--t1); animation: ambientGlow 3s infinite ease-in-out; }
+        .card.active.tier-2 { --glow-color: rgba(33, 150, 243, 0.3); border-left: 6px solid var(--t2); animation: ambientGlow 3s infinite ease-in-out; }
+        .card.active.tier-3 { --glow-color: rgba(255, 193, 7, 0.4); border-left: 6px solid var(--t3); animation: ambientGlow 3s infinite ease-in-out; }
+        
+        .card.mastered { 
+            border: 2px solid var(--mastery); 
+            --glow-color: rgba(255, 247, 0, 0.6);
+            animation: ambientGlow 1.5s infinite ease-in-out; /* Faster pulse for Mastery */
+        }
+
+        .card.locked { opacity: 0.15; filter: grayscale(1); }
+
+        .image-box {
+            width: 90px; height: 90px; flex-shrink: 0; background: #000;
+            margin: 10px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+        }
+        .image-box img { width: 85%; height: 85%; object-fit: contain; }
+
+        .content { padding: 12px 15px 12px 5px; flex-grow: 1; }
+        .tier-label { font-weight: 900; text-transform: uppercase; font-size: 0.9rem; }
+        .badge { font-size: 0.7rem; padding: 3px 7px; border-radius: 4px; float: right; background: #333; font-weight: bold; }
+        .active .badge { background: #2e7d32; }
+        .mastered .badge { background: var(--mastery); color: #000; }
+
+        .desc { font-size: 1.1rem; color: #ddd; margin: 6px 0; line-height: 1.3; }
+        .xp-container { background: #000; height: 12px; border-radius: 6px; margin-top: 10px; width: 100%; overflow: hidden;}
+        .xp-bar { height: 100%; width: 0%; transition: width 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .tier-1 .xp-bar { background: var(--t1); }
+        .tier-2 .xp-bar { background: var(--t2); }
+        .tier-3 .xp-bar { background: var(--t3); }
+        .mastered .xp-bar { background: var(--mastery); }
+
+        .controls { display: flex; gap: 8px; margin-top: 12px; }
+        button { border: 1px solid #444; border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: bold; color: white; }
+        .btn-plus { flex-grow: 1; padding: 15px; background: #222; text-transform: uppercase; border: 1px solid #555; }
+        .btn-minus { width: 50px; background: #1a1a1a; color: #ff4444; font-size: 1.3rem; }
+
+        /* Full Screen Celebration Overlay */
+        #celebration-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 9999;
+            display: none; align-items: center; justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+        #celebration-overlay.show { display: flex; animation: fadeIn 0.5s; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes screenShake {
+            0% { transform: translate(1px, 1px); }
+            50% { transform: translate(-3px, -2px); }
+            100% { transform: translate(0, 0); }
+        }
+        .shake { animation: screenShake 0.4s ease-in-out; }
+
+        @media (min-width: 768px) {
+            .card-row { flex-direction: row; }
+            .card { flex-direction: column; width: 32%; text-align: center; }
+            .image-box { width: 100%; height: 130px; margin: 0; border-radius: 0; }
+            .content { padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+<header><h1>Character Skill Tree</h1></header>
+<div id="app"></div>
+
+<div id="celebration-overlay">
+    <div style="width: 300px; height: 300px; text-align: center;">
+        <h2 style="color: var(--mastery); text-transform: uppercase; letter-spacing: 3px;">MASTERY ACHIEVED</h2>
+        <div class="tenor-gif-embed" data-postid="1309218732423981129" data-share-method="host" data-aspect-ratio="1" data-width="100%"><a href="https://tenor.com/view/winner-champ-champion-trophy-good-job-gif-1309218732423981129">Winner Champ Sticker</a>from <a href="https://tenor.com/search/winner-stickers">Winner Stickers</a></div> <script type="text/javascript" async src="https://tenor.com/embed.js"></script>
+    </div>
+</div>
+
+<script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playSound(type) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const now = audioCtx.currentTime;
+
+        if (type === 'click') {
+            const frequencies = [220, 330, 440];
+            frequencies.forEach(f => {
+                const o = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                o.type = 'triangle';
+                o.frequency.setValueAtTime(f, now);
+                g.gain.setValueAtTime(0.04, now);
+                g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                o.connect(g); g.connect(audioCtx.destination);
+                o.start(); o.stop(now + 0.5);
+            });
+        } else if (type === 'fanfare') {
+            [261, 329, 392, 523].forEach((f, i) => {
+                const o = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                o.type = 'sawtooth';
+                o.frequency.setValueAtTime(f, now + (i * 0.08));
+                g.gain.setValueAtTime(0.08, now + (i * 0.08));
+                g.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+                o.connect(g); g.connect(audioCtx.destination);
+                o.start(now + (i * 0.08)); o.stop(now + 1.2);
+            });
+        } else if (type === 'mastery') {
+            const chords = [261, 329, 392, 523, 659];
+            chords.forEach((f, i) => {
+                const o = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                o.frequency.setValueAtTime(f, now + (i * 0.15));
+                g.gain.setValueAtTime(0.1, now + (i * 0.15));
+                g.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+                o.connect(g); g.connect(audioCtx.destination);
+                o.start(now + (i * 0.15)); o.stop(now + 2.5);
+            });
+            // Delay applause slightly for GIF timing
+            setTimeout(() => playSound('applause'), 600);
+        } else if (type === 'applause') {
+            const bufferSize = audioCtx.sampleRate * 4; // Longer applause for mastery
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const g = audioCtx.createGain();
+            g.gain.setValueAtTime(0.1, now);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 4);
+            noise.connect(g); g.connect(audioCtx.destination);
+            noise.start();
+        }
+    }
+
+    const skillData = [
+        { name: "Presentation", prefix: "pres", xp: 0, m1: 5, m2: 15, m3: 35, t1: "Foundations set.", t2: "Visual mastery.", t3: "Expert presenter." },
+        { name: "Athleticism", prefix: "ath", xp: 0, m1: 30, m2: 90, m3: 180, t1: "Consistency.", t2: "Power/Precision.", t3: "Peak condition." },
+        { name: "Negotiation", prefix: "nego", xp: 0, m1: 5, m2: 20, m3: 50, t1: "Leverage basics.", t2: "Win-win logic.", t3: "Grandmaster." },
+        { name: "Public Speaking", prefix: "publ", xp: 0, m1: 5, m2: 20, m3: 50, t1: "Voice found.", t2: "Crowd control.", t3: "Charisma." }
+    ];
+
+    function fireConfetti(isMastery = false) {
+        const count = isMastery ? 500 : 150;
+        const colors = isMastery ? ['#ffed00', '#ffffff', '#ffaa00', '#ff0000'] : ['#2196f3', '#ffffff'];
+        confetti({ particleCount: count, spread: 140, origin: { y: 0.6 }, colors: colors });
+        document.body.classList.add('shake');
+        setTimeout(() => document.body.classList.remove('shake'), 400);
+    }
+
+    function render() {
+        const app = document.getElementById('app');
+        app.innerHTML = skillData.map((skill, index) => {
+            const tier = skill.xp >= skill.m2 ? 3 : (skill.xp >= skill.m1 ? 2 : 1);
+            const isMastered = skill.xp >= skill.m3;
+            
+            return `
+            <div class="skill-section">
+                <div class="skill-name">${skill.name} (${skill.xp} XP)</div>
+                <div class="card-row">
+                    ${[1, 2, 3].map(t => {
+                        const active = tier === t;
+                        const locked = tier < t;
+                        const done = tier > t;
+                        const cardMastery = (t === 3 && isMastered);
+                        
+                        let prog = 0;
+                        if (active) {
+                            if (t === 1) prog = (skill.xp / skill.m1) * 100;
+                            if (t === 2) prog = ((skill.xp - skill.m1) / (skill.m2 - skill.m1)) * 100;
+                            if (t === 3) prog = ((skill.xp - skill.m2) / (skill.m3 - skill.m2)) * 100;
+                        } else if (done) { prog = 100; }
+
+                        return `
+                        <div class="card tier-${t} ${active ? 'active' : ''} ${locked ? 'locked' : ''} ${cardMastery ? 'mastered' : ''}">
+                            <div class="image-box"><img src="${skill.prefix}${t}.png" onerror="this.style.opacity='0.1'"></div>
+                            <div class="content">
+                                <span class="badge">${cardMastery ? 'MASTERED' : (active ? 'ACTIVE' : (locked ? 'LOCKED' : 'DONE'))}</span>
+                                <span class="tier-label" style="color:var(--t${t})">Tier ${t}</span>
+                                <div class="desc">${skill['t'+t]}</div>
+                                ${active ? `
+                                    <div class="xp-container"><div class="xp-bar" style="width:${prog}%"></div></div>
+                                    <div class="controls">
+                                        <button class="btn-minus" onclick="modifyXP(${index},-1)">−</button>
+                                        <button class="btn-plus" onclick="modifyXP(${index},1)">Log Practice</button>
+                                    </div>` : ''}
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>`;
+        }).join('');
+        localStorage.setItem('myRPGSavV5', JSON.stringify(skillData));
+    }
+
+    function triggerMasteryCelebration() {
+        const overlay = document.getElementById('celebration-overlay');
+        overlay.classList.add('show');
+        
+        // Hide after 5 seconds
+        setTimeout(() => {
+            overlay.classList.remove('show');
+        }, 5000);
+    }
+
+    window.modifyXP = (i, n) => {
+        const s = skillData[i];
+        const oldXP = s.xp;
+        const newXP = Math.max(0, Math.min(s.m3, oldXP + n));
+
+        if (newXP !== oldXP) {
+            s.xp = newXP;
+            // Mastery Check
+            if (oldXP < s.m3 && newXP >= s.m3) {
+                playSound('mastery');
+                fireConfetti(true);
+                triggerMasteryCelebration();
+            } 
+            // Tier 3 Unlock
+            else if (oldXP < s.m2 && newXP >= s.m2) {
+                playSound('fanfare');
+                fireConfetti(false);
+            }
+            // Tier 2 Unlock
+            else if (oldXP < s.m1 && newXP >= s.m1) {
+                playSound('fanfare');
+                fireConfetti(false);
+            }
+            else if (n > 0) {
+                playSound('click');
+            }
+            render();
+        }
+    }
+
+    const saved = localStorage.getItem('myRPGSavV5');
+    if(saved) {
+        const parsed = JSON.parse(saved);
+        parsed.forEach((s, i) => { if(skillData[i]) skillData[i].xp = s.xp; });
+    }
+    render();
+</script>
+</body>
+</html>
