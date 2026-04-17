@@ -50,7 +50,6 @@
         }
         .image-box img { width: 80%; height: 80%; object-fit: contain; }
 
-        /* Zoom Overlay */
         #zoom-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.95); z-index: 10000;
@@ -58,7 +57,7 @@
             backdrop-filter: blur(10px); cursor: pointer;
         }
         #zoom-overlay.show { display: flex; }
-        #zoomed-img { width: 250px; height: 250px; object-fit: contain; transition: transform 0.3s; }
+        #zoomed-img { width: 250px; height: 250px; object-fit: contain; }
         #zoom-text { 
             margin-top: 30px; font-size: 1.4rem; color: #fff; text-align: center; 
             max-width: 85%; line-height: 1.5; font-weight: bold; opacity: 0; transform: translateY(20px);
@@ -69,6 +68,7 @@
         .tier-label { font-weight: 900; text-transform: uppercase; font-size: 0.9rem; }
         .badge { font-size: 0.7rem; padding: 3px 7px; border-radius: 4px; float: right; background: #333; font-weight: bold; }
         .active .badge { background: #2e7d32; }
+        .mastered .badge { background: var(--mastery); color: #000; }
 
         .desc { font-size: 1rem; color: #bbb; margin: 6px 0; line-height: 1.2; }
         .xp-container { background: #000; height: 12px; border-radius: 6px; margin-top: 10px; width: 100%; overflow: hidden;}
@@ -76,11 +76,12 @@
         .tier-1 .xp-bar { background: var(--t1); }
         .tier-2 .xp-bar { background: var(--t2); }
         .tier-3 .xp-bar { background: var(--t3); }
+        .mastered .xp-bar { background: var(--mastery); }
 
         .controls { display: flex; gap: 8px; margin-top: 12px; }
         button { border: 1px solid #444; border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: bold; color: white; }
-        .btn-plus { flex-grow: 1; padding: 15px; background: #222; }
-        .btn-minus { width: 50px; background: #1a1a1a; color: #ff4444; }
+        .btn-plus { flex-grow: 1; padding: 15px; background: #222; text-transform: uppercase; }
+        .btn-minus { width: 50px; background: #1a1a1a; color: #ff4444; font-size: 1.3rem; }
 
         #celebration-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; display: none; align-items: center; justify-content: center; }
         #celebration-overlay.show { display: flex; }
@@ -99,7 +100,7 @@
 <div id="app"></div>
 
 <div id="zoom-overlay" onclick="handleZoomClick()">
-    <img id="zoomed-img" src="" alt="Zoomed Skill">
+    <img id="zoomed-img" src="">
     <div id="zoom-text"></div>
 </div>
 
@@ -112,47 +113,39 @@
 
 <script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playSound(f=440) {
+    
+    function playSound(type) {
         if (audioCtx.state === 'suspended') audioCtx.resume();
-        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-        o.type='triangle'; o.frequency.setValueAtTime(f, audioCtx.currentTime);
-        g.gain.setValueAtTime(0.05, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
-        o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.5);
+        const now = audioCtx.currentTime;
+        if (type === 'click') {
+            [220, 330, 440].forEach(f => {
+                const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+                o.type='triangle'; o.frequency.setValueAtTime(f, now);
+                g.gain.setValueAtTime(0.04, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(now + 0.5);
+            });
+        } else if (type === 'fanfare') {
+            [261, 329, 392, 523].forEach((f, i) => {
+                const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+                o.type='sawtooth'; o.frequency.setValueAtTime(f, now + (i * 0.08));
+                g.gain.setValueAtTime(0.08, now + (i * 0.08)); g.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+                o.connect(g); g.connect(audioCtx.destination); o.start(now + (i * 0.08)); o.stop(now + 1.2);
+            });
+        } else if (type === 'mastery') {
+            [261, 329, 392, 523, 659].forEach((f, i) => {
+                const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+                o.frequency.setValueAtTime(f, now + (i * 0.15));
+                g.gain.setValueAtTime(0.1, now + (i * 0.15)); g.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+                o.connect(g); g.connect(audioCtx.destination); o.start(now + (i * 0.15)); o.stop(now + 2.5);
+            });
+        }
     }
 
     const skillData = [
-        { 
-            name: "Presentation", prefix: "pres", xp: 0, m1: 5, m2: 15, m3: 35,
-            quotes: [
-                "You're getting there! Your presentation is smooth and the foundation is solid.",
-                "You've found your rhythm. You use visuals as a weapon rather than a crutch.",
-                "Master Presenter and Objection Handler. No one can stop you. You command the room!"
-            ]
-        },
-        { 
-            name: "Athleticism", prefix: "ath", xp: 0, m1: 30, m2: 90, m3: 180,
-            quotes: [
-                "Building the engine. You have established a consistent routine and stamina is climbing.",
-                "Power and precision. You have mastered the mechanics of movement.",
-                "Peak physical condition. Your body is a finely tuned machine."
-            ]
-        },
-        { 
-            name: "Negotiation", prefix: "nego", xp: 0, m1: 5, m2: 20, m3: 50,
-            quotes: [
-                "Learning the leverage. You understand the basics of value exchange.",
-                "The Art of the Deal. You find 'Win-Win' scenarios others miss.",
-                "Unstoppable Influence. You orchestrate outcomes before the meeting begins."
-            ]
-        },
-        { 
-            name: "Public Speaking", prefix: "publ", xp: 0, m1: 5, m2: 20, m3: 50,
-            quotes: [
-                "Voice found! You can address a group clearly, overcoming 'Stage Fright'.",
-                "Captivating the crowd. Your vocal tonality keeps attention locked.",
-                "Absolute Charisma. Your words inspire action across the masses."
-            ]
-        }
+        { name: "Presentation", prefix: "pres", xp: 0, m1: 5, m2: 15, m3: 35, quotes: ["You're getting there! Your presentation is smooth and the foundation is solid.", "You've found your rhythm. You use visuals as a weapon rather than a crutch.", "Master Presenter and Objection Handler. No one can stop you. You command the room!"] },
+        { name: "Athleticism", prefix: "ath", xp: 0, m1: 30, m2: 90, m3: 180, quotes: ["Building the engine. You have established a consistent routine and stamina is climbing.", "Power and precision. You have mastered the mechanics of movement.", "Peak physical condition. Your body is a finely tuned machine."] },
+        { name: "Negotiation", prefix: "nego", xp: 0, m1: 5, m2: 20, m3: 50, quotes: ["Learning the leverage. You understand the basics of value exchange.", "The Art of the Deal. You find 'Win-Win' scenarios others miss.", "Unstoppable Influence. You orchestrate outcomes before the meeting begins."] },
+        { name: "Public Speaking", prefix: "publ", xp: 0, m1: 5, m2: 20, m3: 50, quotes: ["Voice found! You can address a group clearly, overcoming 'Stage Fright'.", "Captivating the crowd. Your vocal tonality keeps attention locked.", "Absolute Charisma. Your words inspire action across the masses."] }
     ];
 
     let zoomStep = 0;
@@ -161,14 +154,12 @@
         const overlay = document.getElementById('zoom-overlay');
         const img = document.getElementById('zoomed-img');
         const txt = document.getElementById('zoom-text');
-        
         img.src = `${skillData[sIdx].prefix}${tIdx + 1}.png`;
         txt.innerText = skillData[sIdx].quotes[tIdx];
-        
         overlay.classList.add('show');
         txt.classList.remove('visible');
         zoomStep = 1;
-        playSound(523);
+        playSound('click');
     }
 
     function handleZoomClick() {
@@ -182,6 +173,8 @@
         const app = document.getElementById('app');
         app.innerHTML = skillData.map((skill, sIdx) => {
             const currentTier = skill.xp >= skill.m2 ? 3 : (skill.xp >= skill.m1 ? 2 : 1);
+            const mastered = skill.xp >= skill.m3;
+
             return `
             <div class="skill-section">
                 <div class="skill-name">${skill.name} (${skill.xp} XP)</div>
@@ -190,23 +183,21 @@
                         const active = currentTier === t;
                         const locked = currentTier < t;
                         const done = currentTier > t;
-                        const isMastered = (t === 3 && skill.xp >= skill.m3);
+                        const isMasteryCard = (t === 3 && mastered);
                         let prog = active ? (t === 1 ? (skill.xp/skill.m1)*100 : (t === 2 ? ((skill.xp-skill.m1)/(skill.m2-skill.m1))*100 : ((skill.xp-skill.m2)/(skill.m3-skill.m2))*100)) : (done ? 100 : 0);
 
                         return `
-                        <div class="card tier-${t} ${active ? 'active' : ''} ${locked ? 'locked' : ''} ${isMastered ? 'mastered' : ''}">
-                            <div class="image-box" onclick="openZoom(${sIdx}, ${t-1})">
-                                <img src="${skill.prefix}${t}.png" onerror="this.src='https://via.placeholder.com/80?text=PNG'">
-                            </div>
+                        <div class="card tier-${t} ${active ? 'active' : ''} ${locked ? 'locked' : ''} ${isMasteryCard ? 'mastered' : ''}">
+                            <div class="image-box" onclick="openZoom(${sIdx}, ${t-1})"><img src="${skill.prefix}${t}.png" onerror="this.src='https://via.placeholder.com/80?text=IMG'"></div>
                             <div class="content">
-                                <span class="badge">${isMastered ? 'MASTERED' : (active ? 'ACTIVE' : (locked ? 'LOCKED' : 'DONE'))}</span>
+                                <span class="badge">${isMasteryCard ? 'MASTERED' : (active ? 'ACTIVE' : (locked ? 'LOCKED' : 'DONE'))}</span>
                                 <span class="tier-label" style="color:var(--t${t})">Tier ${t}</span>
                                 <div class="desc">${skill.quotes[t-1].substring(0, 35)}...</div>
-                                ${active && !isMastered ? `
+                                ${active ? `
                                     <div class="xp-container"><div class="xp-bar" style="width:${prog}%"></div></div>
                                     <div class="controls">
                                         <button class="btn-minus" onclick="modifyXP(${sIdx},-1)">−</button>
-                                        <button class="btn-plus" onclick="modifyXP(${sIdx},1)">Log Practice</button>
+                                        ${!mastered ? `<button class="btn-plus" onclick="modifyXP(${sIdx},1)">Log Practice</button>` : ''}
                                     </div>` : ''}
                             </div>
                         </div>`;
@@ -214,7 +205,7 @@
                 </div>
             </div>`;
         }).join('');
-        localStorage.setItem('myRPGSavV8', JSON.stringify(skillData));
+        localStorage.setItem('myRPGSavV9', JSON.stringify(skillData));
     }
 
     window.modifyXP = (i, n) => {
@@ -222,17 +213,28 @@
         const oldXP = s.xp;
         s.xp = Math.max(0, Math.min(s.m3, s.xp + n));
         if (s.xp !== oldXP) {
-            playSound(440);
-            if (oldXP < s.m3 && s.xp >= s.m3) {
-                document.getElementById('celebration-overlay').classList.add('show');
-                confetti({ particleCount: 400, spread: 100, origin: { y: 0.6 } });
-                setTimeout(() => document.getElementById('celebration-overlay').classList.remove('show'), 5000);
+            if (n > 0) {
+                // Check for Mastery
+                if (oldXP < s.m3 && s.xp >= s.m3) {
+                    playSound('mastery');
+                    confetti({ particleCount: 500, spread: 150, origin: { y: 0.6 } });
+                    document.getElementById('celebration-overlay').classList.add('show');
+                    setTimeout(() => document.getElementById('celebration-overlay').classList.remove('show'), 5000);
+                } 
+                // Check for Tier Up (Unlock Tier 2 or 3)
+                else if ((oldXP < s.m1 && s.xp >= s.m1) || (oldXP < s.m2 && s.xp >= s.m2)) {
+                    playSound('fanfare');
+                    confetti({ particleCount: 150, spread: 70 });
+                } 
+                else { playSound('click'); }
+            } else {
+                playSound('click');
             }
             render();
         }
     }
 
-    const saved = localStorage.getItem('myRPGSavV8');
+    const saved = localStorage.getItem('myRPGSavV9');
     if(saved) JSON.parse(saved).forEach((s, i) => { if(skillData[i]) skillData[i].xp = s.xp; });
     render();
 </script>
